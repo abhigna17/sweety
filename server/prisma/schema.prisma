@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReadingSlot {
+  MORNING
+  AFTER_BREAKFAST
+  AFTER_LUNCH
+  AFTER_DINNER
+}
+
+enum LifestyleType {
+  MEAL
+  ACTIVITY
+  SLEEP
+  NOTE
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+model User {
+  id                 String                    @id @default(uuid())
+  role               UserRole                  @default(PATIENT)
+  doctorProfile      DoctorProfile?
+  doctorAppointments AppointmentRequest[]      @relation("DoctorAppointments")
+  doctorConnections  DoctorPatientConnection[] @relation("DoctorConnections")
+  patientConnections DoctorPatientConnection[] @relation("PatientConnections")
+  sentMessages       ConsultationMessage[]     @relation("MessageSender")
+  receivedMessages   ConsultationMessage[]     @relation("MessageRecipient")
+  doctorNotes        ConsultationNote[]        @relation("DoctorNotes")
+  patientNotes       ConsultationNote[]        @relation("PatientNotes")
+  name               String
+  email              String                    @unique
+  passwordHash       String
+  language           String                    @default("en")
+  createdAt          DateTime                  @default(now())
+  readings           Reading[]
+  lifestyle          LifestyleEntry[]
+  medications        Medication[]
+  appointments       AppointmentRequest[]      @relation("PatientAppointments")
+}
+
+model Reading {
+  id        String      @id @default(uuid())
+  userId    String
+  date      DateTime    @db.Date
+  slot      ReadingSlot
+  value     Int
+  note      String?     @db.VarChar(500)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, slot])
+  @@index([userId, date])
+}
+
+model LifestyleEntry {
+  id          String        @id @default(uuid())
+  userId      String
+  type        LifestyleType
+  occurredAt  DateTime
+  title       String
+  description String?       @db.VarChar(1000)
+  category    String?
+  durationMin Int?
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+}
+
+model Medication {
+  id         String           @id @default(uuid())
+  userId     String
+  name       String
+  dosage     String
+  schedule   String
+  reminderAt String?
+  active     Boolean          @default(true)
+  notes      String?          @db.VarChar(500)
+  createdAt  DateTime         @default(now())
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doses      MedicationDose[]
+
+  @@index([userId, active])
+}
+
+model AppointmentRequest {
+  id                String    @id @default(uuid())
+  userId            String
+  doctorName        String
+  clinicName        String?
+  specialty         String?
+  contactPhone      String?
+  contactEmail      String?
+  visitType         String
+  preferredAt       DateTime
+  reason            String
+  status            String    @default("PENDING")
+  doctorUserId      String?
+  doctorUser        User?     @relation("DoctorAppointments", fields: [doctorUserId], references: [id], onDelete: SetNull)
+  updatedByDoctorAt DateTime?
+  meetingUrl        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation("PatientAppointments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, preferredAt])
+}
+
+model DoctorProfile {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  specialty  String
+  clinicName String?
+  bio        String?  @db.VarChar(1000)
+  phone      String?
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DoctorPatientConnection {
+  id          String    @id @default(uuid())
+  doctorId    String
+  patientId   String
+  status      String    @default("PENDING")
+  consentedAt DateTime?
+  createdAt   DateTime  @default(now())
+  doctor      User      @relation("DoctorConnections", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient     User      @relation("PatientConnections", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, patientId])
+  @@index([patientId, status])
+}
+
+model ConsultationMessage {
+  id            String   @id @default(uuid())
+  senderId      String
+  recipientId   String
+  appointmentId String?
+  content       String   @db.VarChar(4000)
+  createdAt     DateTime @default(now())
+  sender        User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient     User     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, recipientId, createdAt])
+}
+
+model ConsultationNote {
+  id               String   @id @default(uuid())
+  doctorId         String
+  patientId        String
+  appointmentId    String?
+  content          String   @db.VarChar(5000)
+  visibleToPatient Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  doctor           User     @relation("DoctorNotes", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient          User     @relation("PatientNotes", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, createdAt])
+}
+
+enum MedicationDoseStatus {
+  TAKEN
+  NOT_TAKEN
+}
+
+model MedicationDose {
+  id           String              @id @default(uuid())
+  medicationId String
+  label        String              @db.VarChar(60)
+  time         String              @db.VarChar(5)
+  quantity     String              @db.VarChar(80)
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  medication   Medication          @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  logs         MedicationDoseLog[]
+
+  @@index([medicationId, active])
+}
+
+model MedicationDoseLog {
+  id        String               @id @default(uuid())
+  doseId    String
+  date      DateTime             @db.Date
+  status    MedicationDoseStatus
+  takenAt   DateTime?
+  note      String?              @db.VarChar(300)
+  createdAt DateTime             @default(now())
+  dose      MedicationDose       @relation(fields: [doseId], references: [id], onDelete: Cascade)
+
+  @@unique([doseId, date])
+  @@index([date])
+}

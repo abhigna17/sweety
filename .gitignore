@@ -1,0 +1,36 @@
+node_modules
+.env
+.env.local
+dist
+coverage
+.DS_Store
+server/node_modules
+client/node_modules
+
+# Environment variables and secrets
+.env*
+!.env.example
+**/.env*
+!**/.env.example
+
+# Local databases and backups
+*.dump
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs and system files
+*.log
+.DS_Store
+
+# Temporary editor backups
+*.bak
+
+# Local source backups
+backups/
+
+# Temporary source recovery copies
+*.before
+*.before-*
+*.pre-*
