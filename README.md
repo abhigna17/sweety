@@ -190,7 +190,16 @@ This synchronises the Prisma schema with the configured development database. Re
 npm run db:seed
 ```
 
-**Important seed-script behaviour:** the current seed script upserts the demo patient and then deletes and recreates that demo patient's glucose readings. Run it only against a disposable/fresh development database or when you intentionally want to reset the demo patient's sample readings. Do not run it against a database containing records you need to preserve. It also creates/upserts a demo doctor account.
+> **⚠️ IMPORTANT — READ BEFORE RUNNING THE SEED SCRIPT**
+>
+> The seed script creates or updates the demo patient and doctor accounts. It also **deletes and recreates all glucose readings belonging to the demo patient**.
+>
+> - Run this command only on a fresh or disposable development database.
+> - Do not run it against a database containing demo readings or other records you want to preserve.
+> - Running it again resets the demo patient's sample glucose readings.
+> - The script does not delete other users' glucose readings.
+>
+> Demo credentials are printed in the terminal after successful execution.
 
 ### 7. Start the application
 
