@@ -1,235 +1,415 @@
-# Sweety — Personal Diabetes Management Platform
+# Sweety — Blood Glucose & Personal Health Tracker
 
-A full-stack glucose and wellness tracker built for the Kenpath Junior Full Stack Developer assignment. Sweety includes account authentication, per-user glucose records, reporting, lifestyle journaling, a health timeline, medication reminders, OCR-assisted entry, multilingual navigation, privacy controls, exports, Mochi the optional AI companion, and private doctor appointment requests.
+A full-stack health-record application built for the **Kenpath Junior Full Stack Developer – JavaScript & AI** take-home assignment.
 
-> **Important health disclaimer:** Sweety is a personal record-keeping and data-explanation tool. It is not a medical device, does not diagnose, and does not recommend treatment or medication changes. Users should discuss clinical interpretation with their healthcare professional. OCR suggestions must be checked against the original meter before saving.
+Sweety helps a patient record daily blood glucose readings, review trends and reports, and keep related wellness information in one place. The original assignment scope is implemented alongside several additional patient-support features.
 
-## Tech stack
+> **Health disclaimer:** Sweety is a personal record-keeping and data-visualisation tool. It is not a medical device, does not diagnose conditions, and does not recommend treatment or medication changes. Users should consult a qualified healthcare professional for medical interpretation. OCR suggestions must be checked against the original meter before saving.
 
-- React 18 + Vite, responsive CSS, Recharts, Lucide icons
-- Node.js + Express REST API
-- PostgreSQL 16 + Prisma ORM
-- bcrypt password hashing, JWT authentication, Zod validation
-- Tesseract.js OCR (browser-side), jsPDF, CSV/JSON export
-- Optional OpenAI-compatible assistant (disabled unless an API key is configured)
+## Contents
 
-## Requirements
+- [Assignment scope](#assignment-scope)
+- [Features](#features)
+- [Technology stack](#technology-stack)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Database and demo data](#database-and-demo-data)
+- [Running the application](#running-the-application)
+- [Tests and build](#tests-and-build)
+- [API overview](#api-overview)
+- [Development log](#development-log)
+- [Assumptions and implementation notes](#assumptions-and-implementation-notes)
+- [Known limitations](#known-limitations)
+- [Future improvements](#future-improvements)
+- [Security and privacy](#security-and-privacy)
 
-- Node.js 20 or newer
-- Docker Desktop (recommended for local PostgreSQL) or a PostgreSQL 14+ instance
-- npm
+## Assignment scope
 
-## Run locally on macOS
+The Kenpath assignment asks for a React frontend, a Node.js/Express API, and PostgreSQL persistence for a patient glucose tracker.
 
-1. Unzip the project and open Terminal in the `sweety` folder.
-2. Install dependencies:
-
-   ```bash
-   npm install
-   npm --prefix server install
-   npm --prefix client install
-   ```
-
-3. Create your local environment file:
-
-   ```bash
-   cp .env.example server/.env
-   ```
-
-   The server loads `server/.env`; the example database URL and Docker credentials are preconfigured. Change `JWT_SECRET` to a long random value before using real data.
-
-4. Start PostgreSQL:
-
-   ```bash
-   docker compose up -d db
-   ```
-
-5. Create the database tables and demo data:
-
-   ```bash
-   npm run db:push
-   npm run db:seed
-   ```
-
-6. Start the frontend and backend:
-
-   ```bash
-   npm run dev
-   ```
-
-7. Open **http://localhost:5173**. The API health endpoint is **http://localhost:4000/api/health**.
-
-### Demo account
-
-- Email: `demo@sweety.health`
-- Password: `SweetyDemo123!`
-
-Or register a new account. Demo readings are synthetic sample data and are not medical guidance.
-
-## Environment variables
-
-| Variable | Purpose |
+| Required item | Implementation |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret used to sign session tokens |
-| `PORT` | API port (default 4000) |
-| `CLIENT_ORIGIN` | Allowed frontend origin |
-| `OPENAI_API_KEY` | Optional key to enable AI explanations |
-| `OPENAI_MODEL` | Optional model name (default `gpt-4o-mini`) |
+| Sign up and log in | Implemented with bcrypt password hashing and JWT-protected API routes |
+| User-specific readings | Reading queries and mutations are scoped to the authenticated user |
+| Add, view, edit and delete readings | Implemented |
+| Four daily time slots | Morning (fasting), After breakfast, After lunch, After dinner |
+| Reading validation | Whole-number values from 40–600 mg/dL, no future dates, one reading per slot per day, and a maximum of four readings per day |
+| Daily report | Selected date, summary statistics, and individual readings |
+| Month-to-date report | First day of selected month through selected date |
+| Previous-month report | Full previous calendar month |
+| Empty report state | Friendly empty state when no readings exist |
 
-Never commit `.env` or real credentials.
+The database also enforces a unique constraint on `(userId, date, slot)` so duplicate readings for a slot cannot be inserted for the same patient and date.
 
 ## Features
 
-### Assignment requirements
+### Core glucose tracking
 
-- Sign up and log in; bcrypt-hashed passwords; JWT-protected routes.
-- User-scoped glucose readings with create, list, edit and delete.
-- Four supported slots: Morning (fasting), After breakfast, After lunch and After dinner.
-- Validation: integer value from 40 to 600 mg/dL, no future dates, no duplicate slot per day, maximum four readings per day.
-- Daily, month-to-date and previous-month reports with count, highest, lowest, average (one decimal) and daily reading details.
-- PostgreSQL unique constraint on `(userId, date, slot)` and index on `(userId, date)`.
+- Patient registration and login.
+- Create, view, update and delete glucose readings.
+- Four defined daily reading slots.
+- Clear validation feedback for missing, out-of-range, decimal, duplicate-slot and future-date input.
+- Daily, month-to-date and previous-month reports.
+- Report statistics: highest, lowest, average (rounded to one decimal place), and reading count.
+- Daily report includes the readings and their time slots.
+- Monthly trend visualisation and dashboard summaries.
+- Reading list pagination and filtering by date range and slot.
 
-### Additional features
+### Additional patient features
 
-- Dashboard with monthly average chart and descriptive statistical insights.
-- Pagination and filtering support on `GET /api/readings?page=1&limit=20&from=YYYY-MM-DD&to=YYYY-MM-DD&slot=MORNING`.
-- Lifestyle journal for meals, activity, sleep and notes; combined health timeline.
-- Medication schedule records and browser notification reminders while the app is open. Browser permission is required; this is not a background/push notification service.
-- OCR-assisted glucose value suggestion from an uploaded image using Tesseract.js. The candidate is never saved automatically and must be verified by the user.
-- English, Telugu and Hindi navigation labels.
-- Consistency calendar and engagement milestones (tracking consistency is a data-completeness indicator, not a health score).
-- CSV readings export, printable/downloadable PDF report and JSON personal-data export.
-- Privacy controls to export data or delete the account and associated records.
-- Optional AI assistant. Without an API key, the app still works and returns a local data summary. The AI is constrained to explaining app data, not medical advice.
+- **Lifestyle journal:** log meals, activity, sleep and notes.
+- **Health timeline:** view health-related entries together.
+- **Medication centre:** maintain medication records and active/inactive status.
+- **Daily dose tracker:** configure prescription-based dose slots with a label, time and quantity; mark each dose as Taken or Not taken; leave unmarked doses as Not recorded.
+- **Dose history:** review recorded dose statuses by date.
+- **Medication reminders:** browser notifications while the application is open and notification permission has been granted.
+- **OCR-assisted entry:** use Tesseract.js to suggest a glucose value from an uploaded meter image. The user must verify the value; OCR does not save a reading automatically.
+- **Charts and insights:** visual summaries of recorded readings.
+- **Exports:** CSV readings export, printable/downloadable PDF report, and JSON personal-data export.
+- **Privacy controls:** export personal data or request account deletion.
+- **Language support:** English, Telugu and Hindi interface labels.
+- **Optional assistant:** a data-explanation assistant with a local-data fallback; hosted AI configuration is optional.
 
-## API overview
+### Doctor and care-team extensions
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/api/auth/register` | Register |
-| POST | `/api/auth/login` | Login |
-| GET | `/api/auth/me` | Current user |
-| PATCH | `/api/auth/profile` | Update name/language |
-| GET/POST | `/api/readings` | List/create readings |
-| GET/PUT/DELETE | `/api/readings/:id` | Read/update/delete a reading |
-| GET | `/api/reports/daily` | Daily report |
-| GET | `/api/reports/month-to-date` | Month-to-date report |
-| GET | `/api/reports/monthly` | Previous-month report |
-| GET | `/api/reports/insights` | Descriptive statistics |
-| GET/POST | `/api/lifestyle` | List/create journal entries |
-| GET | `/api/timeline` | Combined timeline |
-| GET/POST | `/api/medications` | List/create medications |
-| GET/POST/DELETE | `/api/appointments` | Create/list/cancel private appointment requests |
-| GET | `/api/privacy/export` | Export account data |
-| DELETE | `/api/privacy/account` | Delete account and associated data |
-| POST | `/api/assistant` | Optional data explainer |
+- Patient and doctor account roles.
+- Doctor profiles and patient–doctor connection workflow.
+- Appointment requests and doctor-facing appointment workflows.
+- Consultation notes and patient/doctor messaging for connected users.
+- Lightweight online-presence indicators for the messaging experience.
 
-All endpoints except health and authentication require `Authorization: Bearer <token>`.
+These are extensions beyond the required glucose-tracker scope. Presence is held in application memory and is not a durable activity history.
 
-## Tests
+## Technology stack
 
-Run:
+| Layer | Technologies |
+|---|---|
+| Frontend | React 18, Vite, JavaScript, CSS |
+| Charts and icons | Recharts, Lucide React |
+| Backend | Node.js, Express |
+| Database | PostgreSQL 16 |
+| ORM | Prisma |
+| Authentication | bcryptjs, JSON Web Tokens |
+| Validation | Zod |
+| Security and middleware | Helmet, CORS, express-rate-limit, Morgan |
+| OCR | Tesseract.js |
+| Reports and exports | jsPDF, browser print, CSV/JSON export |
+| Local database environment | Docker Compose |
+| Optional AI | Ollama local model; optional OpenRouter/OpenAI-compatible configuration |
 
-```bash
-npm test
+## Project structure
+
+```text
+sweety/
+├── client/
+│   ├── index.html
+│   ├── package.json
+│   └── src/
+│       ├── api.js
+│       ├── main.jsx
+│       └── style.css
+├── server/
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   ├── seed.js
+│   │   └── create-admin.js
+│   ├── src/
+│   │   ├── app.js
+│   │   ├── auth.js
+│   │   ├── db.js
+│   │   ├── index.js
+│   │   └── validators.js
+│   ├── tests/
+│   │   └── validation.test.js
+│   └── package.json
+├── .env.example
+├── docker-compose.yml
+├── package.json
+└── README.md
 ```
 
-The included lightweight Node test suite checks glucose range invariants. Before production use, expand it into integration tests for authentication, per-user access control, duplicate-slot race conditions, report date boundaries and all validation rules.
+## Getting started
 
-## Assumptions and known limitations
+### Prerequisites
 
-- Dates are stored as PostgreSQL `DATE` values and interpreted as calendar dates; the app currently uses the browser's local date for display and UTC date strings for API boundaries.
-- Medication reminders are browser notifications while the app is open. Reliable background reminders require a service worker/push provider and explicit notification infrastructure.
-- OCR is best-effort. Image layouts vary; every candidate value must be verified before saving.
-- The AI assistant is optional and should not receive unnecessary personal information. Do not add real patient data to a third-party AI service without appropriate consent and compliance review.
-- PDF reports are generated client-side from the selected report. The user should review the report before sharing it with a clinician.
-- This is an assessment/demo project, not a HIPAA-certified or production clinical system. Production deployment needs security review, stronger session handling (prefer secure HttpOnly cookies), audit logging, backups, monitoring, consent workflows and a clinical/privacy compliance assessment.
+- Node.js 20 or newer
+- npm
+- Docker Desktop (for the included PostgreSQL service), or a compatible PostgreSQL instance
 
-## Suggested next improvements
+### 1. Clone the repository
 
-- Add integration tests using a disposable PostgreSQL database and Supertest.
-- Add transactional handling for concurrent reading creation and explicit API error codes.
-- Add a server-side PDF report endpoint and signed, expiring share links.
-- Add background medication reminders through a service worker and push subscription.
-- Add clinician-approved configurable reference ranges only if the product scope and clinical review support them.
-- Add accessibility testing, end-to-end tests and deployment automation.
+```bash
+git clone https://github.com/abhigna17/sweety.git
+cd sweety
+```
 
-## Sweety Complete UI update
+### 2. Install dependencies
 
-The current UI uses a shared responsive design system across the dashboard, glucose tracker, reports, lifestyle journal, timeline, medication centre, Mochi assistant, care-team requests, privacy centre and settings. Light and midnight-navy dark themes are available from the top bar and the selected theme is remembered in the browser. Mochi is a small CSS-drawn companion so the UI does not depend on an external mascot image asset.
+```bash
+npm install
+npm --prefix server install
+npm --prefix client install
+```
 
-### Care-team appointment requests
+### 3. Configure the backend environment
 
-The **Contact care team** page lets a patient enter their own clinician/clinic contact details, choose a phone consultation or clinic visit, select a preferred date and time, and submit a private appointment request with a reason. Requests are stored against the authenticated user and displayed with a `PENDING` status. The app does not claim that an appointment is confirmed, does not invent doctor availability, and does not place calls or send email. Use the displayed `tel:` / `mailto:` links to contact the clinic directly. The patient can share reports separately when they choose.
+```bash
+cp .env.example server/.env
+```
 
-The appointment request table is part of the Prisma schema. After updating an existing local database, run:
+Update `JWT_SECRET` with a long, random secret before using the application beyond local evaluation. The backend loads its environment from `server/.env`.
+
+### 4. Start PostgreSQL
+
+With Docker Desktop running:
+
+```bash
+docker compose up -d db
+```
+
+Check that the database container is healthy:
+
+```bash
+docker compose ps
+```
+
+If you use your own PostgreSQL server instead, update `DATABASE_URL` in `server/.env` to point to that database.
+
+### 5. Apply the Prisma schema
 
 ```bash
 npm run db:push
 ```
 
-The privacy JSON export includes appointment requests. Deleting a user cascades to their appointment requests.
+This synchronises the Prisma schema with the configured development database. Review schema changes and back up any database containing data before applying changes.
 
-### Design and safety notes
-
-- Mochi can summarize user-entered records and explain application reports. It is not a doctor and must not diagnose, prescribe, recommend medication changes, or label readings as safe/unsafe.
-- AI chat requires `OPENAI_API_KEY`; all non-AI application features work without it.
-- OCR results are suggestions only. The patient must verify the value against the meter before saving.
-- Browser medication reminders require the app to be open and notification permission to be granted.
-- Appointment requests are not an emergency service. Contact the patient's clinic or local emergency service directly when urgent help is needed.
-
-## Free local AI for Mochi (no API key)
-
-Mochi can use Ollama locally. Install Ollama for macOS from https://ollama.com/download, open the Ollama app, then run:
+### 6. (Optional) Create demo data
 
 ```bash
-ollama pull qwen3:4b
-ollama run qwen3:4b
+npm run db:seed
 ```
 
-The first command downloads the model (about 2.6 GB); this is a one-time download. Qwen3 supports 100+ languages and the listed Qwen3 4B quantized model is published under Apache 2.0. Quit the interactive chat with `/bye` after the model has downloaded. Keep the Ollama app running. In `server/.env`, set:
+**Important seed-script behaviour:** the current seed script upserts the demo patient and then deletes and recreates that demo patient's glucose readings. Run it only against a disposable/fresh development database or when you intentionally want to reset the demo patient's sample readings. Do not run it against a database containing records you need to preserve. It also creates/upserts a demo doctor account.
 
-```env
-AI_PROVIDER="ollama"
-OLLAMA_BASE_URL="http://127.0.0.1:11434"
-OLLAMA_MODEL="qwen3:4b"
+### 7. Start the application
+
+Run both services together:
+
+```bash
+npm run dev
 ```
 
-Restart Sweety with `npm run dev`. The browser chat calls the authenticated Sweety backend; the backend calls Ollama on this Mac. No paid API key is needed. The model runs locally; do not expose port 11434 to the public internet. Model downloads require internet and use disk space. Response speed depends on Mac hardware and available memory.
+Or run them in separate terminals:
 
-Mochi is a health-data explainer, not a clinician. It must not diagnose, recommend treatment, or advise medication changes.
+```bash
+# Terminal 1 — API
+npm run dev:server
+```
 
+```bash
+# Terminal 2 — React/Vite client
+npm run dev:client
+```
 
-## Patient and doctor workspaces (extended demo)
+Open the frontend at:
 
-Sweety now supports separate `PATIENT` and `DOCTOR` roles. Existing accounts are migrated as `PATIENT` by the Prisma default, so the original patient workflow and records are retained. Doctor registration creates a doctor profile in an unverified state; only profiles marked `verified=true` appear in the patient doctor directory. This prototype intentionally does not let users self-verify clinical credentials. For a local demo, the seed creates a verified clinician account.
+- **Web app:** http://localhost:5173
+- **API health check:** http://localhost:4000/api/health
+
+## Environment variables
+
+All variables are listed in `.env.example`. Configure them in `server/.env`.
+
+| Variable | Required | Description |
+|---|---:|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret used to sign authentication tokens |
+| `PORT` | No | API port; defaults to `4000` |
+| `CLIENT_ORIGIN` | No | Allowed frontend origin; defaults to `http://localhost:5173` |
+| `AI_PROVIDER` | No | AI provider selection; local Ollama is the intended default |
+| `OLLAMA_BASE_URL` | No | Local Ollama endpoint |
+| `OLLAMA_MODEL` | No | Local model name; example: `qwen3:4b` |
+| `OPENROUTER_API_KEY` | No | Optional key for hosted OpenRouter models |
+| `OPENROUTER_MODEL` | No | Optional OpenRouter model name |
+| `OPENAI_API_KEY` | No | Optional hosted OpenAI-compatible provider key |
+| `OPENAI_MODEL` | No | Optional hosted model name |
+
+The core tracker does not require a hosted AI API key. Never commit `server/.env`, API keys, JWT secrets, database dumps, or real patient records.
+
+## Database and demo data
+
+PostgreSQL is the source of truth for user accounts, readings, lifestyle entries, medication records, appointments and care-team records. Prisma defines the schema and generates the database client.
+
+The glucose `Reading` model stores:
+
+- Patient/user ID
+- Date
+- Reading slot
+- Integer glucose value in mg/dL
+- Optional note
+- Creation and update timestamps
+
+The unique `(userId, date, slot)` constraint prevents duplicate slot entries for a patient on a date.
+
+The dose tracker uses separate medication dose schedule and dose-log records. Each scheduled dose can have a date-specific status. An unmarked dose remains **Not recorded**; the application does not silently classify an unmarked dose as missed.
 
 ### Demo accounts
 
-- Patient: `demo@sweety.health` / `SweetyDemo123!`
-- Doctor: `doctor@sweety.health` / `SweetyDoctor123!`
+The seed script prints the demo credentials when it completes:
 
-Run `npm run db:push` and `npm run db:seed` after updating the project. The seed refreshes the demo patient's sample glucose readings; do not run it against a database containing data you need to preserve without first taking a backup. The schema migration itself is additive and does not delete existing patient readings, lifestyle entries, medications, or appointment requests.
+- Patient: `demo@sweety.health`
+- Password: `SweetyDemo123!`
+- Doctor: `doctor@sweety.health`
+- Password: `SweetyDoctor123!`
 
-### Doctor workflow
+These are development-only credentials. Change or remove demo accounts before any public deployment. Demo readings are synthetic sample data, not medical guidance.
 
-- Patients can browse verified doctor profiles, request a connection, and request phone, clinic, or online appointments with a linked doctor account.
-- Doctors can review incoming appointment requests and confirm or decline them. Confirming an online appointment creates a random Jitsi demo room URL.
-- Doctors can accept or decline patient connection requests. Only an accepted connection allows a doctor to retrieve the patient's glucose readings and lifestyle entries or exchange secure in-app messages.
-- Doctors can add consultation notes linked to an appointment; notes are visible to the patient.
-- Patient and doctor APIs enforce their respective account roles. A doctor cannot use patient reading CRUD endpoints.
+## Running the application
 
-### Consultation and verification limitations
+### Useful commands
 
-This is an educational prototype, not a production telehealth service. The Jitsi room URL is a demo integration and is not an authenticated clinical video platform. Before real patient use, integrate a provider with authenticated meeting tokens, waiting rooms and access controls; add verified clinician credential review, availability/conflict checking, notification delivery, audit logging, data-retention policies, encryption/key management, legal/privacy review, and appropriate clinical governance. No consultation is recorded by Sweety.
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start frontend and backend together |
+| `npm run dev:server` | Start Express API |
+| `npm run dev:client` | Start Vite frontend |
+| `npm run build` | Create the frontend production build |
+| `npm test` | Run backend automated tests |
+| `npm run db:push` | Apply Prisma schema to the configured database |
+| `npm run db:seed` | Create/reset demo seed data (see warning above) |
 
-### Mochi hybrid assistant
+## Tests and build
 
-Mochi uses a deterministic private data engine for questions about readings, matching-date comparisons, recorded patterns, seven-day summaries, medication reminders, appointments and doctor-ready factual summaries. These calculations are performed in the backend against the signed-in patient's records. Personal health records are not sent to hosted LLM providers. If Ollama is unavailable, the deterministic engine and built-in product guide still work.
+Run backend tests:
 
-Optional OpenRouter support is available for general Sweety how-to questions only. Configure `AI_PROVIDER="openrouter"`, `OPENROUTER_API_KEY`, and optionally `OPENROUTER_MODEL="openrouter/free"` in `server/.env`. OpenRouter free models are rate-limited and availability can vary; they are not required for data questions. Never include identifiable health information in third-party model prompts.
+```bash
+npm test
+```
 
-### New environment variables
+The validation test suite covers valid whole-number readings, missing values, values outside the allowed 40–600 mg/dL range, and decimal values.
 
-See `.env.example` for `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`. Keep all secrets in `server/.env`; never commit that file.
+Build the frontend:
+
+```bash
+npm run build
+```
+
+During development, the recorded verification run completed with:
+
+- Backend tests: **4 passed, 0 failed**.
+- Frontend production build: **successful**.
+- Vite emitted a bundle-size warning for a JavaScript chunk larger than 500 kB. Code splitting and bundle optimisation remain improvement areas.
+
+These results describe the recorded development run; rerun both commands after making changes.
+
+## API overview
+
+The API is served from `http://localhost:4000`. Protected routes require a valid authenticated session.
+
+| Area | Example endpoints | Purpose |
+|---|---|---|
+| Health | `GET /api/health` | API health check |
+| Authentication | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` | Register, login and current user |
+| Profile | `PATCH /api/auth/profile` | Update profile/language |
+| Readings | `GET/POST /api/readings`, `GET/PUT/DELETE /api/readings/:id` | Reading CRUD |
+| Reports | `GET /api/reports/daily`, `/api/reports/month-to-date`, `/api/reports/monthly` | Glucose reports |
+| Insights | `GET /api/reports/insights` | Descriptive reading insights |
+| Lifestyle | `GET/POST /api/lifestyle` | Lifestyle journal |
+| Timeline | `GET /api/timeline` | Combined health timeline |
+| Medication | `GET/POST /api/medications`, `PATCH/DELETE /api/medications/:id` | Medication records |
+| Dose tracker | `GET /api/medication-doses`, `POST /api/medications/:id/doses`, `PUT /api/medication-doses/:id/log` | Dose schedules and date-specific logs |
+| Dose history | `GET /api/medication-history` | Dose history |
+| Care team | `/api/doctors`, `/api/connections`, `/api/appointments` | Doctor discovery, connections and appointments |
+| Messaging | `/api/messages` and related inbox routes | Connected patient/doctor messages |
+| Privacy | `GET /api/privacy/export`, `DELETE /api/privacy/account` | Personal-data export and account deletion |
+
+For exact request and response shapes, see the route handlers in `server/src/app.js` and validation schemas in `server/src/validators.js`.
+
+## Development log
+
+The work was organised around the three-day assignment window, followed by final verification and documentation on the submission day. This is a milestone summary, not a claim that every feature was written on a single date.
+
+### November 7 — Assignment breakdown and application foundation
+
+- Reviewed the Kenpath brief and prioritised the required full-stack glucose-tracking workflow.
+- Established the React/Vite frontend, Express API and PostgreSQL/Prisma architecture.
+- Defined the patient account and glucose-reading data model, including the four daily reading slots.
+- Set up the project structure and local development configuration.
+
+### November 8 — Core tracker and supporting workflows
+
+- Built out the patient-facing application experience and glucose-recording workflow.
+- Implemented authentication and user-scoped reading operations.
+- Added reading validation and report calculations for daily, month-to-date and previous-month views.
+- Expanded the app with dashboard visualisation and supporting health-record features, including lifestyle tracking and export/report functionality.
+- Added and exercised backend validation tests.
+
+### November 9 — Integration, additional features and repository preparation
+
+- Integrated the broader health-management experience: medication records, appointment/care-team workflows, and doctor/patient features.
+- Added a medication dose schedule and date-specific Taken / Not taken / Not recorded tracker with history.
+- Added doctor–patient messaging and lightweight online-presence indicators.
+- Worked through local setup, Prisma client/schema alignment, database integration and application runtime issues.
+- Verified the backend test suite and frontend production build.
+- Prepared `.env.example`, checked that local secrets and backups were excluded, created the initial Git commit, and pushed the public repository.
+
+### November 10 — Final review and submission preparation
+
+- Confirmed the application starts locally and the medication tracker is working after the backend restart.
+- Updated this README to document setup, architecture, features, tests, assumptions, limitations and future work.
+- Preparing a short 2–3 minute product walkthrough and screenshots for the Kenpath submission email.
+
+## Assumptions and implementation notes
+
+- The four glucose slots are fixed to the labels in the assignment: Morning (fasting), After breakfast, After lunch and After dinner.
+- A glucose value is stored as a whole-number integer in mg/dL and must be between 40 and 600 inclusive.
+- A patient may have at most one reading per slot per calendar date, and at most four readings per date.
+- Dates in the future are rejected.
+- Report averages are rounded to one decimal place. Empty date ranges return an empty state rather than fabricated values.
+- Reading ownership is determined by the authenticated user, not by a user ID supplied by the browser.
+- The dose tracker records what a patient marks. It does not infer whether an unmarked dose was taken.
+- Dose labels, times and quantities are entered by the patient based on their existing prescription. Sweety does not prescribe or calculate medication doses.
+- Browser reminders require notification permission and the app to remain open. They are not guaranteed background notifications.
+- Presence is maintained in server memory with an expiry window. It is suitable for a single local server process, not a horizontally scaled deployment without shared presence storage.
+- OCR output is a suggestion only and must be verified by the user.
+- Optional AI is not required for the core glucose-tracking workflow. Health records should not be sent to a hosted AI service for clinical interpretation.
+
+## Known limitations
+
+- The current automated suite is focused on backend input validation; broader API integration, database and frontend interaction tests would improve confidence.
+- The frontend production build currently reports a large JavaScript chunk; route-level code splitting and bundle optimisation have not yet been completed.
+- Browser-based medication reminders are limited by browser permission, device settings and the app being open.
+- Presence is in-memory and will not be shared between multiple backend instances.
+- The seed script resets sample readings for the demo patient; it must not be run against a database whose demo readings need to be retained.
+- A complete production deployment, monitoring, backup/restore runbook and security review are outside the current local assignment implementation.
+- Dependency audit output during local installation reported vulnerabilities in the dependency tree. These should be reviewed and resolved with compatible, tested dependency updates rather than applying force upgrades blindly.
+
+## Future improvements
+
+If more development time were available, the next priorities would be:
+
+1. **Test coverage:** add API integration tests for authentication, per-user access control, reading CRUD, report date boundaries and dose logging; add React Testing Library tests for the reading form and key workflows.
+2. **Security hardening:** review dependency advisories, add stronger request validation and rate limits where appropriate, review token lifecycle and cookie/storage strategy, and perform an authorisation audit across doctor/patient routes.
+3. **Reliable reminders:** add a persistent notification centre and a background job/queue for scheduled reminders; support push notifications where the platform permits.
+4. **Production readiness:** add deployment configuration, structured logging, health monitoring, database migrations, automated backups and a tested restore procedure.
+5. **Scalability:** move online presence and messaging delivery state to a shared store for multi-instance deployments.
+6. **Data portability:** include dose schedules and dose logs in the personal-data export and add import/restore support.
+7. **Frontend performance and accessibility:** split large bundles, improve loading/error/empty states, keyboard navigation and screen-reader labels.
+8. **Clinical safety and clarity:** make units and date/time handling explicit, add clear data provenance, and keep all clinical decisions with the patient's healthcare professional.
+
+## Security and privacy
+
+- Passwords are hashed with bcryptjs; plaintext passwords are not stored.
+- Protected API routes use JWT authentication.
+- Reading and patient-owned data access is scoped to the authenticated account.
+- Helmet, CORS configuration and authentication rate limiting are included in the API.
+- `.env`, local database files, backups and generated build/dependency folders are excluded from version control.
+- `.env.example` contains placeholders and local-development defaults only. Replace secrets before deployment.
+- Use synthetic data for demonstrations. Do not place real patient information, database dumps, API keys or passwords in the public repository.
+
+---
+
+**Repository:** https://github.com/abhigna17/sweety
+
+Built as a learning and engineering exercise for the Kenpath Junior Full Stack Developer – JavaScript & AI assessment.
